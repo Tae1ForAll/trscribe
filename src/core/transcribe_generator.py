@@ -4,6 +4,7 @@ from pathlib import Path
 from src.core.audio import prepared_audio
 from src.core.device import select_device
 from src.core.languages import Lang
+from src.core.progress import TranscriptionProgress, report_stage
 from src.model.options import (
     DeviceType,
     ModelSize,
@@ -57,7 +58,10 @@ def generate_subtitles(
     device, precision = select_device(request.device_type, request.compute_type, request.device_index)
     from faster_whisper import WhisperModel
 
+    if request.normalize:
+        report_stage("Normalizing audio...")
     with prepared_audio(request) as (audio_path, offset):
+        report_stage(f"Loading model {request.model_size.value} on {device} ({precision})...")
         model = WhisperModel(
             request.model_size.value,
             device=device,
@@ -65,11 +69,21 @@ def generate_subtitles(
             device_index=request.device_index if device == "cuda" else 0,
         )
 
-        segments, _ = model.transcribe(
+        report_stage("Decoding audio and detecting language...")
+        segments, info = model.transcribe(
             str(audio_path), language=request.lang.value if request.lang else None, **request.options.model_dump()
         )
-        # Consume lazy inference before the temporary audio is removed.
-        validated = arrange_segments(list(segments), 0.0)
+
+        # consume lazy inference before the temporary audio is removed.
+        report_stage("Transcribing audio...")
+        cues = []
+        with TranscriptionProgress(getattr(info, "duration", None)) as progress:
+            for segment in segments:
+                cue = SubtitleSegment.model_validate(segment, from_attributes=True)
+                cues.append(cue)
+                progress.update(cue.end)
+        validated = arrange_segments(cues, 0.0)
+
         if offset == 0.0:
             return arrange_segments(validated, request.extra_display_time)
         aligned = [
@@ -77,4 +91,5 @@ def generate_subtitles(
             for cue in validated
             if cue.end + offset > 0.0
         ]
+
         return arrange_segments(aligned, request.extra_display_time)

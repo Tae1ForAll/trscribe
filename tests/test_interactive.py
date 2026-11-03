@@ -1,5 +1,4 @@
 """Interactive session tests without downloads, external tools, or real inference."""
-import ast
 import contextlib
 import io
 from pathlib import Path
@@ -24,19 +23,17 @@ class InteractiveTests(unittest.TestCase):
             setup.assert_called_once_with()
             interactive.assert_called_once_with()
 
-    def test_presets_match_manual_script_without_executing_it(self):
-        """Compare preset values with test_only.py without importing its transcription run."""
-        path = Path(__file__).resolve().parents[1] / 'test_only.py'
-        tree = ast.parse(path.read_text())
-        expected = {}
-        for node in tree.body:
-            if isinstance(node, ast.Assign) and isinstance(node.value, ast.Call):
-                name = node.targets[0].id if isinstance(node.targets[0], ast.Name) else ''
-                if name in {'default_params', 'sensitive_params'}:
-                    expected[name] = {item.arg: ast.literal_eval(item.value) for item in node.value.keywords}
-        for preset in ParameterPreset:
+    def test_builtin_presets_keep_expected_values(self):
+        """Verify the built-in parameter values independently of removed manual scripts."""
+        shared = dict(condition_on_previous_text=False, vad_filter=False,
+                      temperature=0.0, word_timestamps=True)
+        expected = {
+            ParameterPreset.DEFAULT: dict(beam_size=10, no_speech_threshold=0.35, **shared),
+            ParameterPreset.SENSITIVE: dict(beam_size=5, no_speech_threshold=0.2, **shared),
+        }
+        for preset, parameters in expected.items():
             actual = preset_options(preset).model_dump()
-            for name, value in expected[preset.value + '_params'].items():
+            for name, value in parameters.items():
                 self.assertEqual(actual[name], value)
         first = preset_options(ParameterPreset.DEFAULT)
         first.beam_size = 1

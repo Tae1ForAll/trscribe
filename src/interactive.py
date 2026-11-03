@@ -247,6 +247,7 @@ def run_interactive(settings: SessionSettings):
         ],
     )
     file_input = prompt_path("Input audio/video path: ")
+
     # Reject missing media before asking for the rest of the run settings.
     TranscriptionRequest(file_input=file_input)
     format = prompt("Subtitle format [srt] (srt/vtt/ass): ", "srt")
@@ -306,9 +307,11 @@ def interactive_main() -> int:
             except (ValueError, TypeError, OSError, RuntimeError, ImportError) as exc:
                 print(f"Error: {exc}")
                 print("Please try again; your model and preset selection are retained.")
+
     except EOFError:
         print("\nGoodbye.")
         return 0
+
     except KeyboardInterrupt:
         print("\nInterrupted. Exiting TRSCRIBE.")
         return 130

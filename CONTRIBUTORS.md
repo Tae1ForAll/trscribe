@@ -42,6 +42,7 @@ The Python package is currently named `src`; this is also the import path. Setup
 | `src/core/environment.py` | Linux CUDA library search-path setup before backend use. |
 | `src/core/device.py` | CTranslate2 device diagnostics and compute-type selection. |
 | `src/core/transcribe_generator.py` | Whisper inference, cue validation, timing alignment, and display extension. |
+| `src/core/progress.py` | Terminal progress based on media duration and segment timestamps, with plain status output when redirected. |
 | `src/core/audio.py` | Optional FFmpeg normalization and temporary audio lifecycle. |
 | `src/core/file_manager.py` | SRT, VTT, and ASS serialization plus SRT import. |
 | `src/core/preset_store.py` | Validation, loading, and atomic saving of custom presets. |
@@ -99,7 +100,9 @@ Add the supported identifier to `ModelSize` in `src/model/options.py`. CLI choic
 
 Edit `ParameterPreset` and `preset_options()` for built-in presets. Return fresh validated options so editing a custom preset cannot mutate a built-in definition.
 
-The existing tests compare the original two presets with `test_only.py` without executing that script. If you intentionally change those definitions, update the example and relevant test expectations together. Newly added built-ins need their own coverage.
+Tests verify the original two presets against explicit expected values, independently
+of manual scripts. If you intentionally change those definitions, update the relevant
+test expectations and user documentation together. Newly added built-ins need their own coverage.
 
 ### Add a subtitle format
 
@@ -131,6 +134,7 @@ python -m unittest discover -s tests -p 'test_presets.py' -v
 | `test_audio.py` | Normalization, duration correction, offsets, cleanup, and FFmpeg failures. |
 | `test_interactive.py` | Menu routing, preset selection, prompts, run failures, and session exits. |
 | `test_presets.py` | Custom preset validation, persistence, inspection, and use during transcription. |
+| `test_progress.py` | Progress updates, unknown durations, completion, interruption, and redirected output. |
 
 Inference and GPU responses are mocked. Real audio-conversion tests use generated fixtures and run only when FFmpeg tools are available. Automated tests do not establish real speech-recognition quality or GPU inference success.
 

@@ -67,6 +67,13 @@ For your first run:
 
 Model and preset selections stay active for the current session. **Ctrl-C** exits the tool.
 
+During a run, stage messages show normalization (when enabled), model loading, and
+audio decoding. Transcription displays a progress bar with percentage, processed
+audio seconds, and elapsed time in both interactive and command-line mode. Progress
+updates as speech segments finish, so it can pause or jump during silence. The bar
+tracks transcription, not model downloads or subtitle export. When output is
+redirected, the tool writes plain status messages instead of an animated bar.
+
 ## Where are subtitles saved?
 
 By default, subtitles are saved **beside the input file**, using its name and the chosen extension:
