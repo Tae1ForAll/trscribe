@@ -1,0 +1,16 @@
+# dirs
+test/
+venv312/
+__pycache__/
+
+*.pyc
+*.pyo
+*.egg-info/
+
+build/
+dist/
+
+# files
+*.mp4
+*.mp3
+*.wav

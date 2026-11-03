@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "media-subtitle-transcriber"
+version = "0.1.0"
+description = "Generate SRT, WebVTT, and ASS subtitles from audio and video with faster-whisper."
+readme = "README.md"
+requires-python = ">=3.10"
+license = {file = "LICENSE"}
+dependencies = [
+    "faster-whisper==1.2.1",
+    "ctranslate2==4.6.0",
+    "pydantic==2.14.2",
+    "srt==3.5.3",
+]
+
+[project.optional-dependencies]
+cuda = [
+    "nvidia-cublas-cu12==12.9.1.4; platform_system == 'Linux'",
+    "nvidia-cudnn-cu12==9.16.0.29; platform_system == 'Linux'",
+]
+
+[project.scripts]
+transcribe = "src.cli:entrypoint"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src", "src.*"]
