@@ -110,7 +110,10 @@ Update `FileType`, the allowed export formats, serialization, CLI choices, and i
 
 ### Change terminal screens
 
-Use `print_frame()` for device, configuration, and detail panels. Keep the main menu as a plain list. The start page shows the selected model and preset name; full parameter values belong in the preset-details view.
+Use `print_frame()` for the opening TRSCRIBE logo and tool description. Use
+`print_section()` for unframed device, configuration, and detail sections, and keep
+the main menu as a plain list. The start page shows the selected model and preset
+name; full parameter values belong in the preset-details view.
 
 Keep prompts usable without color support and make long content wrap within the terminal width. Preserve blank-input defaults, error recovery, and clean EOF/Ctrl-C exits.
 

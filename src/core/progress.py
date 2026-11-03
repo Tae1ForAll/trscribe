@@ -3,6 +3,7 @@
 import shutil
 import sys
 import time
+import threading
 
 from pydantic import Field
 from src.model.options import ValidatedModel
@@ -11,6 +12,53 @@ from src.model.options import ValidatedModel
 class ProgressTiming(ValidatedModel):
     duration: float | None = Field(default=None, ge=0)
     processed: float = Field(default=0.0, ge=0)
+
+
+class LoadingIndicator:
+    def __init__(self, message: str, stream=None):
+        """Prepare an animated terminal indicator with a plain-text fallback."""
+        self.message = message
+        self.stream = stream if stream is not None else sys.stderr
+        self.live = self.stream.isatty()
+        self.stop = threading.Event()
+        self.thread = None
+        self.last_width = 0
+
+    def __enter__(self):
+        """Display feedback immediately and animate it while the operation runs."""
+        if self.live:
+            self.render('|')
+            self.thread = threading.Thread(target=self.animate, daemon=True)
+            self.thread.start()
+        else:
+            print(self.message, file=self.stream, flush=True)
+        return self
+
+    def render(self, frame: str):
+        """Draw a spinner frame within the current terminal width."""
+        width = max(1, shutil.get_terminal_size(fallback=(80, 24)).columns - 1)
+        label = f'  {frame} {self.message}'[:width]
+        padding = max(0, min(self.last_width, width) - len(label))
+        self.stream.write('\r' + label + ' ' * padding)
+        self.stream.flush()
+        self.last_width = len(label)
+
+    def animate(self):
+        """Cycle spinner frames until context exit signals completion."""
+        frames = '/-\\|'
+        index = 0
+        while not self.stop.wait(0.1):
+            self.render(frames[index % len(frames)])
+            index += 1
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        """Stop animation and clear its line on success, failure, or interruption."""
+        self.stop.set()
+        if self.thread is not None:
+            self.thread.join()
+        if self.live:
+            self.stream.write('\r' + ' ' * self.last_width + '\r')
+            self.stream.flush()
 
 
 def report_stage(message: str):

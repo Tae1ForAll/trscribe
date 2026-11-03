@@ -2,11 +2,13 @@
 
 from pathlib import Path
 import shutil
+import sys
 import textwrap
 from typing import Literal
 
 from pydantic import Field, model_validator
 from src.core.device import check_device
+from src.core.progress import LoadingIndicator
 from src.core.preset_store import CustomPresets, load_presets, save_presets, preset_path
 from src.core.languages import Lang
 from src.model.options import (
@@ -81,8 +83,16 @@ def print_frame(title: str, lines: list[str]):
     inner = width - 4
     border = "*" * width
     print("\n" + border)
-    for line in textwrap.wrap(title, width=inner):
-        print(f"* {line.center(inner)} *")
+    title_lines = title.strip("\n").splitlines()
+    if len(title_lines) > 1 and any(len(line) > inner for line in title_lines):
+        title_lines = ["TRSCRIBE"]
+    title_width = max(len(line) for line in title_lines)
+    for title_line in title_lines:
+        if len(title_lines) > 1:
+            print(f"* {title_line.ljust(title_width).center(inner)} *")
+            continue
+        for line in textwrap.wrap(title_line, width=inner) or [""]:
+            print(f"* {line.center(inner)} *")
     print(border)
     for line in lines:
         for wrapped in textwrap.wrap(line, width=inner, subsequent_indent="  ") or [""]:
@@ -90,9 +100,23 @@ def print_frame(title: str, lines: list[str]):
     print(border)
 
 
+
+def print_section(title: str, lines: list[str]):
+    """Print an unframed section with indented content and wrapped long lines."""
+    width = max(12, min(76, shutil.get_terminal_size(fallback=(76, 24)).columns))
+    print("\n" + title)
+    print("-" * min(len(title), width))
+    for line in lines:
+        if not line:
+            print()
+            continue
+        print(textwrap.fill(line, width=width, initial_indent="  ", subsequent_indent="    "))
+
+
 def show_status(settings: SessionSettings):
-    """Display framed device status, active configuration, and menu actions."""
-    report = check_device()
+    """Display unframed device status, active configuration, and menu actions."""
+    with LoadingIndicator("Checking CPU and CUDA devices...", stream=sys.stdout):
+        report = check_device()
     selected = "CUDA (device 0)" if report.cuda_available else "CPU" if report.cpu_compute_types else "none"
     device_lines = [
         f'CPU: {"available" if report.cpu_compute_types else "unavailable"}',
@@ -103,9 +127,9 @@ def show_status(settings: SessionSettings):
     if report.issues:
         device_lines += ["", "Diagnostics:"] + [f"- {issue}" for issue in report.issues]
 
-    print_frame("AVAILABLE DEVICES", device_lines)
+    print_section("AVAILABLE DEVICES", device_lines)
 
-    print_frame(
+    print_section(
         "CURRENT CONFIGURATION",
         [
             f"Model: {settings.model_size.value}",
@@ -125,7 +149,7 @@ def show_status(settings: SessionSettings):
 
 def change_model(settings: SessionSettings) -> SessionSettings:
     """Choose a model by its enum value and return validated session settings."""
-    print_frame(
+    print_section(
         "CHANGE MODEL-SIZE",
         [
             f"Current model: {settings.model_size.value}",
@@ -147,7 +171,7 @@ def change_preset(settings: SessionSettings) -> SessionSettings:
         descriptions.append(
             f"{name:<9} - beam size {options.beam_size}; " f"no-speech threshold {options.no_speech_threshold}"
         )
-    print_frame(
+    print_section(
         "CHANGE PARAMETERS PRESET",
         [
             f"Current preset: {settings.preset}",
@@ -176,19 +200,19 @@ PARAMETER_HELP = {
 def view_preset(settings: SessionSettings):
     """Show a selected preset's complete settings and brief parameter explanations."""
     names = [*[preset.value for preset in ParameterPreset], *settings.custom_presets]
-    print_frame("VIEW PRESET DETAILS", ["Available: " + ", ".join(names)])
+    print_section("VIEW PRESET DETAILS", ["Available: " + ", ".join(names)])
     name = prompt(f"Preset [{settings.preset}]: ", settings.preset)
     options = settings.options_for(name)
     lines = []
     for key, value in options.model_dump().items():
         lines.extend([f"{key}: {value}", PARAMETER_HELP[key], ""])
-    print_frame(f"PRESET: {name}", lines)
+    print_section(f"PRESET: {name}", lines)
     prompt("Press Enter to return to the menu: ")
 
 
 def create_preset(settings: SessionSettings) -> SessionSettings:
     """Collect validated overrides, save a custom preset, and select it for this session."""
-    print_frame(
+    print_section(
         "CREATE CUSTOM PRESET",
         [
             f"Starting from: {settings.preset}",
@@ -236,7 +260,7 @@ def run_interactive(settings: SessionSettings):
     """Collect run inputs, validate them, and generate subtitles with the active preset."""
     from src.cli import execute_transcription
 
-    print_frame(
+    print_section(
         "RUN SUBTITLE GENERATION",
         [
             f"Model: {settings.model_size.value}",
@@ -278,9 +302,12 @@ def run_interactive(settings: SessionSettings):
 
 def interactive_main() -> int:
     """Run the interactive session until quit, EOF, or keyboard interruption."""
-    if shutil.get_terminal_size(fallback=(76, 24)).columns >= 54:
-        print(BANNER)
-    print_frame("TRSCRIBE", ["Audio & video subtitles", "Configure. Transcribe. Export."])
+    print_frame(BANNER, [
+        "TRSCRIBE | Audio & video subtitle generator",
+        "",
+        "Create SRT, VTT, and ASS subtitles with Whisper on CPU or NVIDIA CUDA.",
+        "Choose a model and preset, optionally normalize audio, then run.",
+    ])
     try:
         settings = SessionSettings(custom_presets=load_presets())
     except (ValueError, OSError) as exc:

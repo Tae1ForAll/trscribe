@@ -4,12 +4,13 @@ import io
 from pathlib import Path
 import sys
 import tempfile
+import threading
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
 from pydantic import ValidationError
-from src.core.progress import TranscriptionProgress
+from src.core.progress import LoadingIndicator, TranscriptionProgress
 from src.core.transcribe_generator import generate_subtitles
 from src.model.options import ModelSize
 
@@ -21,6 +22,42 @@ class TerminalBuffer(io.StringIO):
 
 
 class ProgressTests(unittest.TestCase):
+    def test_loading_indicator_animates_and_stops(self):
+        """Show immediate feedback, animate during work, and stop before results print."""
+        output = TerminalBuffer()
+        indicator = LoadingIndicator('Checking devices...', stream=output)
+        animated = threading.Event()
+        original_render = indicator.render
+
+        def render(frame):
+            """Record when the background animation advances beyond the initial frame."""
+            original_render(frame)
+            if frame == '/':
+                animated.set()
+
+        with patch.object(indicator, 'render', side_effect=render):
+            with indicator:
+                self.assertIn('Checking devices...', output.getvalue())
+                self.assertTrue(animated.wait(2.0))
+        self.assertFalse(indicator.thread.is_alive())
+        self.assertTrue(output.getvalue().endswith('\r' + ' ' * indicator.last_width + '\r'))
+
+    def test_loading_indicator_cleans_up_on_error(self):
+        """Propagate errors and Ctrl-C while stopping the spinner thread."""
+        for error in (RuntimeError('probe failed'), KeyboardInterrupt()):
+            indicator = LoadingIndicator('Checking devices...', stream=TerminalBuffer())
+            with self.assertRaises(type(error)):
+                with indicator:
+                    raise error
+            self.assertFalse(indicator.thread.is_alive())
+
+    def test_loading_indicator_redirected_output(self):
+        """Print one readable loading message without animation when output is redirected."""
+        output = io.StringIO()
+        with LoadingIndicator('Checking devices...', stream=output) as indicator:
+            self.assertIsNone(indicator.thread)
+        self.assertEqual(output.getvalue(), 'Checking devices...\n')
+
     def test_completion_includes_trailing_silence(self):
         """Reach full duration on success even when the last cue ends before silence."""
         output = TerminalBuffer()
